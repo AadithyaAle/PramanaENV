@@ -77,18 +77,24 @@ python inference.py
 ### Running the OpenEnv Validator
 To ensure the Hugging Face Space deployment and Docker container meet the hackathon requirements:
 ```bash
-chmod +x scripts/validate-submission.sh
-./scripts/validate-submission.sh [https://your-hf-space-url.hf.space](https://your-hf-space-url.hf.space)
+uvicorn server.app:app --reload
 ```
 
-## Baseline Scores
+## Project Structure
 
-* **Model Evaluated:** `Qwen/Qwen2.5-72B-Instruct`
-* **Inference Endpoint:** Hugging Face Serverless Router (`https://router.huggingface.co/v1`)
-* **Task 1 (Easy) Score:** [PENDING EVALUATION]
-* **Task 2 (Medium) Score:** [PENDING EVALUATION]
-* **Task 3 (Hard) Score:** [PENDING EVALUATION]
-* **Overall Pass Rate:** [PENDING EVALUATION]
-
-*(Note: Scores will be updated upon final execution of the inference pipeline prior to submission).*
+```
+SST_hackathon_env/
+├── .dockerignore         # Docker build exclusions
+├── __init__.py            # Module exports
+├── README.md              # This file
+├── openenv.yaml           # OpenEnv manifest
+├── pyproject.toml         # Project metadata and dependencies
+├── uv.lock                # Locked dependencies (generated)
+├── client.py              # SstHackathonEnv client
+├── models.py              # Action and Observation models
+└── server/
+    ├── __init__.py        # Server module exports
+    ├── SST_hackathon_env_environment.py  # Core environment logic
+    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
+    └── Dockerfile         # Container image definition
 ```
