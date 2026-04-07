@@ -1,100 +1,88 @@
-# OpenEnv: Messy Data Pipeline Cleaner 🧹📊
+# 🧹 Meta OpenEnv: Self-Healing Data Pipeline Environment
 
-## Environment Description & Motivation
-Data cleaning and preprocessing is universally recognized as the single largest bottleneck in the machine learning lifecycle. This environment models the genuine, highly valuable real-world task of an automated Data Engineer. 
+**Built for the Meta PyTorch OpenEnv Hackathon**
+By: Team [Your Team Name] (Aadithya Ale & Teammate)
 
-An AI agent is provided with a corrupted dataset (containing missing values, incorrect data types, and wrong column names) and must use standard data engineering operations to transform it into a clean state that perfectly matches a target schema. This environment tests an LLM's ability to reason about data structures, execute precise tabular transformations, and recover from strict formatting errors.
+[![Hugging Face Space](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Live%20Demo-blue)](https://huggingface.co/spaces/YourUsername/YourSpaceName)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
+[![PyTorch Validated](https://img.shields.io/badge/PyTorch-Validated-EE4C2C.svg)](https://pytorch.org/)
 
-## Action and Observation Spaces
+---
 
-This environment strictly follows the OpenEnv specification using typed Pydantic models.
+## 🎯 Overview
+Most LLM environments test if an agent can write code. We built an environment to test if an agent can **think like a Senior Data Engineer**. 
 
-### Observation Space
-The agent receives a state dictionary representing the current condition of the dataset:
-* `current_columns` (List[str]): The current column names in the dataset.
-* `data_types` (Dict[str, str]): Dictionary mapping columns to their pandas `dtypes`.
-* `missing_values` (Dict[str, int]): Count of `NaN`/Null values per column.
-* `data_preview` (str): A markdown table of the first 5 rows to provide the LLM with contextual data grounding.
-* `target_schema_instructions` (str): The goal state the agent must reach to achieve a reward of 1.0.
-* `last_action_feedback` (str): System feedback from the previous action (e.g., "Success: Dropped 5 rows" or "Error: KeyError - column not found").
+The **Data Cleaner Env** is a rigorous, state-managed OpenEnv sandbox where agents must sanitize heavily corrupted datasets. Rather than relying on rigid unit tests, this environment uses a **live PyTorch compilation check** as the ultimate judge of data cleanliness.
 
-### Action Space
-The agent must return a structured JSON object choosing a specific data engineering tool and its parameters:
-* `tool` (Literal): The operation to perform. Must be one of:
-  * `drop_missing_rows`
-  * `fill_missing_values`
-  * `rename_column`
-  * `change_data_type`
-  * `submit_final_dataset`
-* `target_column` (Optional[str]): The specific column to apply the transformation to.
-* `new_value` (Optional[str]): The new name (for renaming) or replacement value (for filling nulls/casting types).
+## ✨ Standout "Pro-Tier" Features
 
-## Task Descriptions & Difficulty
+We designed this environment to punish lazy AI behavior and reward cost-effective, robust planning:
 
-The environment features an automated, deterministic grader that evaluates the final dataset against a hidden "perfect" dataframe. 
+* 🧠 **Live PyTorch Validator:** Agents cannot fake success. Upon submission, the environment attempts to compile the numeric columns directly into a `torch.tensor`. If it fails due to hidden strings, commas, or nulls, the agent fails.
+* 💸 **Economic Efficiency Penalty:** API calls aren't free. The environment applies a `-0.05` reward penalty for every action taken, forcing the agent to optimize its tool usage rather than blindly guessing.
+* 🕰️ **Temporal Safety (Time-Travel):** Data pipelines are fragile. We implemented a state-history stack (`undo_last_action` tool) allowing agents to revert their own hallucinations and recover from mistakes without destroying the dataset.
+* 🕵️ **Anti-Cheat Data Loss Monitor:** Agents are strictly monitored for data loss. If an agent lazily drops rows instead of cleaning them, the environment detects the length mismatch and fails the submission.
+* 🦠 **Silent Corruption Edge Cases:** The "Hard" difficulty injects invisible whitespace and newlines (`" 4,000 \n"`) alongside commas, testing the agent's ability to handle real-world, filthy data.
 
-1. **Task 1 (Easy):** * **Objective:** Clean a dataset containing simple null values.
-   * **Expected Actions:** The agent must identify the column with missing values, use the `drop_missing_rows` tool to remove those specific rows, and submit the dataset.
+---
 
-2. **Task 2 (Medium):** * **Objective:** Standardize a dataset with bad metadata.
-   * **Expected Actions:** The agent must use `rename_column` to fix improperly formatted column headers (e.g., changing `usr_nm` to `username`) and use `change_data_type` to cast string-based numerical columns into proper integer formats.
+## 🛠️ Environment Architecture
 
-3. **Task 3 (Hard):** * **Objective:** Perform complex data imputation and string parsing.
-   * **Expected Actions:** The agent must identify missing values that cannot be dropped, use `fill_missing_values` to safely impute them with a default string (e.g., "Unknown"), and parse complex numerical strings containing commas (e.g., "1,000") into valid integers without crashing the pipeline.
+### State (Observation Space)
+The agent receives a heavily typed Pydantic `Observation` containing:
+* `current_columns`: List of active headers.
+* `data_types`: Deeply inspected Pandas dtypes.
+* `missing_values`: Null counts per column.
+* `data_preview`: Markdown representation of the DataFrame `head()`.
+* `last_action_feedback`: Narrative, self-correcting feedback (e.g., *"Cannot undo: No history available"*).
 
-## Setup and Usage Instructions
+### Tools (Action Space)
+* `drop_missing_rows`
+* `fill_missing_values`
+* `rename_column`
+* `change_data_type`
+* `undo_last_action`
+* `submit_final_dataset`
 
-### Prerequisites
-* Python 3.10+
-* Docker (for final validation and OpenEnv deployment)
+---
 
-### Local Setup
-1. **Clone the repository:**
-   ```bash
-   git clone <your-repo-url>
-   cd <your-repo-directory>
-   ```
+## 🚀 Quickstart & Local Testing
 
-2. **Install the required dependencies:**
-   ```bash
-   pip install pandas gymnasium openenv-core pydantic openai python-dotenv
-   ```
-
-3. **Configure Environment Variables:**
-   Create a `.env` file in the root directory and add your Hugging Face API token:
-   ```env
-   HF_TOKEN="your_hf_access_token_here"
-   API_BASE_URL="[https://router.huggingface.co/v1](https://router.huggingface.co/v1)"
-   MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
-   ```
-
-### Running the Inference Baseline
-To run the automated agent against the environment and reproduce the baseline scores:
+### 1. Installation
+Clone the repository and install the strict dependencies:
 ```bash
-python inference.py
+git clone [https://github.com/AadithyaAle/Meta-ENV-Hackathon.git](https://github.com/AadithyaAle/Meta-ENV-Hackathon.git)
+cd Meta-ENV-Hackathon
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-### Running the OpenEnv Validator
-To ensure the Hugging Face Space deployment and Docker container meet the hackathon requirements:
+### 2. Environment Variables
+Create a `.env` file in the root directory:
+```env
+HF_TOKEN=hf_your_hugging_face_token
+API_BASE_URL=[https://router.huggingface.co/v1](https://router.huggingface.co/v1)
+MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+```
+
+### 3. Run Inference
+Watch the agent interact with the environment in real-time:
 ```bash
-uvicorn server.app:app --reload
+python3 inference.py
 ```
 
-## Project Structure
+---
 
-```
-SST_hackathon_env/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # SstHackathonEnv client
-├── models.py              # Action and Observation models
-└── server/
-    ├── __init__.py        # Server module exports
-    ├── SST_hackathon_env_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+## 📊 Baseline Evaluation (Qwen2.5-72B-Instruct)
+
+We evaluated the Qwen 72B model on the environment. By utilizing our custom instructional prompts and feedback loops, it successfully navigated the environment.
+
+* **Task:** Medium (Rename columns, cast types, submit)
+* **Steps Taken:** 3 (Rename -> Cast -> Submit)
+* **Efficiency Penalties:** -0.10 (2 actions)
+* **Submission Reward:** +1.00
+* **Final Score:** **0.900** (Perfect execution)
+
+*Agent successfully avoided hallucination loops by adhering to the `CRITICAL` state-instructions provided dynamically in the observation.*
 ```

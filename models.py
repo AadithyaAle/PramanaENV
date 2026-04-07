@@ -21,6 +21,7 @@ class Action(BaseModel):
         "rename_column", 
         "change_data_type", 
         "submit_final_dataset"
+        "undo_last_action"
     ]
     target_column: Optional[str] = None
     new_value: Optional[str] = None

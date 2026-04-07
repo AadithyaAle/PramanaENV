@@ -201,3 +201,4 @@ wheel==0.46.1
 xdg==5
 xkit==0.0.0
 zipp==3.23.0
+gradio
