@@ -143,7 +143,7 @@ class DataCleanerEnv(gym.Env):
         return self._get_observation(), reward, terminated, truncated, {}
 
     def _get_observation(self):
-        instructions = ""
+        instructions = "CRITICAL: If the column 'username' already exists and is an 'int', do NOT rename it back. Immediately use 'submit_final_dataset' to finish."
         if self.current_task == "easy":
             instructions = "Ensure there are no missing values in the dataset. Use drop_missing_rows. When finished, you MUST use the 'submit_final_dataset' tool."
         elif self.current_task == "medium":
