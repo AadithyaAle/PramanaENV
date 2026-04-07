@@ -3,8 +3,11 @@ import os
 import json
 import textwrap
 from typing import List, Optional
+from dotenv import load_dotenv
 
 from openai import OpenAI
+
+load_dotenv()
 
 # TODO: Adjust this import to match whatever Teammate 1 named the file and classes!
 from envs.data_cleaner_env import DataCleanerEnv, Action
