@@ -16,46 +16,37 @@ class DataCleanerEnv(gym.Env):
         self.current_task = None
         self.last_action_feedback = ""
 
-        self.action_space = spaces.Discrete(2)
+        # Placeholders for gym API
+        self.action_space = spaces.Discrete(5)
         self.observation_space = spaces.Dict({})
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-
         self.last_action_feedback = ""
 
-        # Randomly choose task
+        # Randomly select task: easy, medium, or hard
         self.current_task = random.choice(["easy", "medium", "hard"])
 
         # ---- TASK 1: EASY ----
         if self.current_task == "easy":
-            data = {
+            self.df = pd.DataFrame({
                 "Name": ["Alice", "Bob", "Charlie", "David", "Eve"],
-                "Email": [
-                    "alice@example.com",
-                    "bob@example.com",
-                    None,
-                    "david@example.com",
-                    "eve@example.com",
-                ],
-            }
-            self.df = pd.DataFrame(data)
+                "Email": ["alice@example.com", "bob@example.com", None, "david@example.com", "eve@example.com"],
+            })
 
         # ---- TASK 2: MEDIUM ----
         elif self.current_task == "medium":
-            data = {
+            self.df = pd.DataFrame({
                 "usr_nm": ["alice", "bob", "charlie", "david", "eve"],
                 "Age": ["25", "30", "22", "40", "28"],
-            }
-            self.df = pd.DataFrame(data)
+            })
 
         # ---- TASK 3: HARD ----
         elif self.current_task == "hard":
-            data = {
+            self.df = pd.DataFrame({
                 "Name": ["Alice", "Bob", "Charlie", "David", "Eve"],
-                "Salary": ["1,000", "2,500", None, "4,000", None],  # commas + missing
-            }
-            self.df = pd.DataFrame(data)
+                "Salary": ["1,000", "2,500", None, "4,000", None],
+            })
 
         return self._get_observation(), {}
 
@@ -63,32 +54,36 @@ class DataCleanerEnv(gym.Env):
         reward = 0.0
         terminated = False
         truncated = False
-        info = {}
-
-        tool = action.tool_name
-        args = action.arguments
-
-        # Reset feedback each step
         self.last_action_feedback = ""
 
         try:
             # ---- DROP MISSING ROWS ----
-            if tool == "drop_missing_rows":
+            if action.tool == "drop_missing_rows":
                 if self.current_task == "hard":
-                    raise ValueError("Dropping rows is not allowed in this task")
+                    raise ValueError("Dropping rows is not allowed in Hard task")
 
-                target_column = args.get("target_column")
-
+                target_column = action.target_column
                 if target_column not in self.df.columns:
                     raise ValueError(f"Column {target_column} not found")
 
                 self.df = self.df.dropna(subset=[target_column]).reset_index(drop=True)
-                self.last_action_feedback = "Dropped rows with missing values"
+                self.last_action_feedback = f"Dropped rows with missing values in {target_column}"
+
+            # ---- FILL MISSING VALUES ----
+            elif action.tool == "fill_missing_values":
+                target_column = action.target_column
+                new_value = action.new_value
+
+                if target_column not in self.df.columns:
+                    raise ValueError(f"Column {target_column} not found")
+
+                self.df[target_column] = self.df[target_column].fillna(new_value)
+                self.last_action_feedback = f"Filled missing values in {target_column}"
 
             # ---- RENAME COLUMN ----
-            elif tool == "rename_column":
-                target_column = args.get("target_column")
-                new_value = args.get("new_value")
+            elif action.tool == "rename_column":
+                target_column = action.target_column
+                new_value = action.new_value
 
                 if target_column not in self.df.columns:
                     raise ValueError(f"Column {target_column} not found")
@@ -97,92 +92,69 @@ class DataCleanerEnv(gym.Env):
                 self.last_action_feedback = f"Renamed {target_column} to {new_value}"
 
             # ---- CHANGE DATA TYPE ----
-            elif tool == "change_data_type":
-                target_column = args.get("target_column")
-                new_value = args.get("new_value")
+            elif action.tool == "change_data_type":
+                target_column = action.target_column
+                new_value = action.new_value
 
                 if target_column not in self.df.columns:
                     raise ValueError(f"Column {target_column} not found")
 
-                # Special cleaning for comma numbers (Task 3)
+                # Handle comma strings if casting to int (Hard task)
                 if new_value == "int":
-                    self.df[target_column] = (
-                        self.df[target_column]
-                        .astype(str)
-                        .str.replace(",", "")
-                    )
+                    self.df[target_column] = self.df[target_column].astype(str).str.replace(",", "")
                     self.df[target_column] = self.df[target_column].astype(int)
-
                 elif new_value == "float":
                     self.df[target_column] = self.df[target_column].astype(float)
-
                 elif new_value == "datetime":
                     self.df[target_column] = pd.to_datetime(self.df[target_column])
-
                 else:
                     raise ValueError(f"Unsupported type {new_value}")
 
                 self.last_action_feedback = f"Converted {target_column} to {new_value}"
 
-            # ---- FILL MISSING VALUES ----
-            elif tool == "fill_missing_values":
-                target_column = args.get("target_column")
-                new_value = args.get("new_value")
-
-                if target_column not in self.df.columns:
-                    raise ValueError(f"Column {target_column} not found")
-
-                self.df[target_column] = self.df[target_column].fillna(new_value)
-                self.last_action_feedback = f"Filled missing values in {target_column}"
-
             # ---- SUBMIT FINAL DATASET ----
-            elif tool == "submit_final_dataset":
-
-                # ---- EASY ----
+            elif action.tool == "submit_final_dataset":
                 if self.current_task == "easy":
                     reward = 1.0 if self.df["Email"].isna().sum() == 0 else 0.0
 
-                # ---- MEDIUM ----
                 elif self.current_task == "medium":
                     correct_columns = set(["username", "Age"])
                     columns_correct = set(self.df.columns) == correct_columns
-
                     dtype_correct = False
                     if "Age" in self.df.columns:
                         dtype_correct = pd.api.types.is_integer_dtype(self.df["Age"])
-
                     reward = 1.0 if (columns_correct and dtype_correct) else 0.0
 
-                # ---- HARD ----
                 elif self.current_task == "hard":
                     no_missing = self.df["Salary"].isna().sum() == 0
-
                     dtype_correct = pd.api.types.is_integer_dtype(self.df["Salary"])
-
                     reward = 1.0 if (no_missing and dtype_correct) else 0.0
 
                 terminated = True
-                self.last_action_feedback = "Submission evaluated"
+                self.last_action_feedback = "Submitted final dataset"
 
             else:
-                raise ValueError(f"Unknown tool {tool}")
+                raise ValueError(f"Unknown tool {action.tool}")
 
-        # ---- GLOBAL ERROR HANDLER (CRITICAL FOR LLM SAFETY) ----
         except Exception as e:
             reward = -0.1
             self.last_action_feedback = f"Error: {str(e)}"
 
-        return self._get_observation(), reward, terminated, truncated, info
+        return self._get_observation(), reward, terminated, truncated, {}
 
     def _get_observation(self):
+        """Convert current DataFrame into Observation for the AI agent"""
         return Observation(
-            data=self.df.to_dict(orient="records"),
-            columns=list(self.df.columns),
-            # 👇 Add feedback for agent reasoning (VERY useful)
-            last_action_feedback=self.last_action_feedback,
+            current_columns=list(self.df.columns),
+            data_types={col: str(dtype) for col, dtype in self.df.dtypes.items()},
+            missing_values={col: self.df[col].isna().sum() for col in self.df.columns},
+            data_preview=self.df.head().to_string(index=False),
+            target_schema_instructions="Clean the dataset according to the task rules",
+            last_action_feedback=self.last_action_feedback
         )
 
     def render(self):
+        """Print the current DataFrame and feedback for debugging"""
         print(f"\nTask: {self.current_task}")
         print(self.df)
-        print("Feedback:", self.last_action_feedback)
+        print("Last action feedback:", self.last_action_feedback)
