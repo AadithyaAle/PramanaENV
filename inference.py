@@ -18,7 +18,7 @@ API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 
 # Defaulting to the Hugging Face router as requested by the hackathon spec
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-7B-Instruct")
 
 TASK_NAME = os.getenv("TASK_NAME", "data_cleaning")
 BENCHMARK = os.getenv("BENCHMARK", "openenv_data_cleaner")
