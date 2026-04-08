@@ -4,10 +4,15 @@ import json
 import textwrap
 from typing import List, Optional
 from dotenv import load_dotenv
+from openenv.core.env_server.http_client import EnvClient
 
 from openai import OpenAI
 
 load_dotenv()
+
+# This is what connects your script to the Hugging Face Space you built!
+api_url = os.getenv("API_BASE_URL", "https://sukuna191552s-pramanaenv.hf.space")
+env = EnvClient(api_url)
 
 # TODO: Adjust this import to match whatever Teammate 1 named the file and classes!
 from envs.data_cleaner_env import DataCleanerEnv, Action

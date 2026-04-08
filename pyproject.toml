@@ -21,7 +21,8 @@ dependencies = [
     "pydantic",
     "openai",
     "python-dotenv",
-    "tabulate" 
+    "tabulate",
+    "gymnasium"
 ]
 
 [project.optional-dependencies]

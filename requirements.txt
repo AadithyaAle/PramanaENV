@@ -5,3 +5,5 @@ numpy
 pydantic
 openai
 python-dotenv
+tabulate
+gymnasium
