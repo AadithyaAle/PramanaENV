@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Literal, Optional, Dict, List
 
 class Observation(BaseModel):
-    # This config line allows OpenEnv to be a bit more forgiving
+    # It is still good practice to keep this config!
     model_config = ConfigDict(extra='ignore') 
     
     current_columns: List[str]
@@ -11,6 +11,10 @@ class Observation(BaseModel):
     data_preview: str 
     target_schema_instructions: str
     last_action_feedback: str 
+    
+    # ADDED THESE TWO LINES (Required by OpenEnv)
+    reward: float = 0.0
+    done: bool = False
 
 class Action(BaseModel):
     model_config = ConfigDict(extra='ignore')
