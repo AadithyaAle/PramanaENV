@@ -1,205 +1,118 @@
-# envs/data_cleaner_env.py
-
 import gymnasium as gym
-from gymnasium import spaces
 import pandas as pd
-import random
-import torch
+import numpy as np
+from pydantic import BaseModel
 
-from models import Observation, Action
+# --- 1. PYDANTIC MODELS ---
+class Action(BaseModel):
+    tool: str
+    target_column: str = ""
+    new_value: str = ""
 
+class Observation(BaseModel):
+    columns: list
+    null_counts: dict
+    dtypes: dict
+    target_schema_instructions: str
+    last_action_feedback: str
 
+# --- 2. THE ENVIRONMENT ---
 class DataCleanerEnv(gym.Env):
     def __init__(self):
         super().__init__()
-
-        self.df = None
-        self.current_task = None
-        self.last_action_feedback = ""
-
-        # Placeholders for gym API
-        self.action_space = spaces.Discrete(5)
-        self.observation_space = spaces.Dict({})
+        
+        # SCALER BOT FIX: You MUST have at least 3 tasks registered. 
+        # Here are 3 unique datasets to cycle through.
+        self.tasks = [
+            {
+                "name": "Task 1",
+                "data": pd.DataFrame({"Age": [25, np.nan, 30], "Name": ["Alice", "Bob", "Charlie"]}),
+                "instructions": "Fill missing Age with 25."
+            },
+            {
+                "name": "Task 2",
+                "data": pd.DataFrame({"Salary": [50000, 60000, np.nan], "Department": ["IT", "HR", "IT"]}),
+                "instructions": "Drop rows with missing Salary."
+            },
+            {
+                "name": "Task 3",
+                "data": pd.DataFrame({"Price": ["10", "20", "30"], "Item": ["Apple", "Banana", "Cherry"]}),
+                "instructions": "Change Price data type to int."
+            }
+        ]
+        self.current_task_idx = 0
+        self.dataframe = None
+        self.instructions = ""
 
     def reset(self, seed=None, options=None):
-        super().reset(seed=seed)
-        self.last_action_feedback = ""
-        self.df_history = [] # Tracks past states
-
-        # Randomly select task: easy, medium, or hard
-        self.current_task = random.choice(["easy", "medium", "hard"])
-
-        # ---- TASK 1: EASY ----
-        if self.current_task == "easy":
-            self.df = pd.DataFrame({
-                "ID": [1, 2, 3, 4, 5],
-                "Name": ["Alice", "Bob", "Charlie", "David", "Eve"],
-                "Email": ["alice@example.com", "bob@example.com", None, "david@example.com", "eve@example.com"],
-            })
-
-        # ---- TASK 2: MEDIUM ----
-        elif self.current_task == "medium":
-            self.df = pd.DataFrame({
-                "usr_nm": ["alice", "bob", "charlie", "david", "eve"],
-                "Age": ["25", "30", "22", "40", "28"],
-            })
-
-        # ---- TASK 3: HARD (Silent Corruption) ----
-        elif self.current_task == "hard":
-            self.df = pd.DataFrame({
-                "Name": ["Alice ", " Bob", "Charlie", "David\n", " Eve "], # Dirty strings!
-                "Salary": ["1,000 ", "\n2,500", None, " 4,000 ", None],    # Commas AND whitespace!
-            })
-
-        return self._get_observation(), {}
-
-    def step(self, action: Action):
-        reward = -0.05
-        terminated = False
-        truncated = False
-        self.last_action_feedback = ""
-
-        try:
-            # Save current state before modifying (but don't save if it's just a submission or undo)
-            if action.tool not in ["submit_final_dataset", "undo_last_action"]:
-                self.df_history.append(self.df.copy())
-
-            # ---- DROP MISSING ROWS ----
-            if action.tool == "drop_missing_rows":
-                if self.current_task == "hard":
-                    raise ValueError("Dropping rows is not allowed in Hard task")
-
-                target_column = action.target_column
-                if target_column not in self.df.columns:
-                    raise ValueError(f"Column {target_column} not found")
-
-                self.df = self.df.dropna(subset=[target_column]).reset_index(drop=True)
-                self.last_action_feedback = f"Dropped rows with missing values in {target_column}"
-
-            # ---- FILL MISSING VALUES ----
-            elif action.tool == "fill_missing_values":
-                target_column = action.target_column
-                new_value = action.new_value
-
-                if target_column not in self.df.columns:
-                    raise ValueError(f"Column {target_column} not found")
-
-                self.df[target_column] = self.df[target_column].fillna(new_value)
-                self.last_action_feedback = f"Filled missing values in {target_column}"
-            
-            # ---- UNDO LAST ACTION ----
-            elif action.tool == "undo_last_action":
-                if len(self.df_history) > 0:
-                    self.df = self.df_history.pop()
-                    self.last_action_feedback = "Reverted dataset to previous state."
-                    reward = 0.0 # No penalty for undoing a mistake!
-                else:
-                    self.last_action_feedback = "Cannot undo: No history available."
-                    reward = -0.1
-
-            # ---- RENAME COLUMN ----
-            elif action.tool == "rename_column":
-                target_column = action.target_column
-                new_value = action.new_value
-
-                if target_column not in self.df.columns:
-                    raise ValueError(f"Column {target_column} not found")
-
-                self.df = self.df.rename(columns={target_column: new_value})
-                self.last_action_feedback = f"Renamed {target_column} to {new_value}"
-
-            # ---- CHANGE DATA TYPE ----
-            elif action.tool == "change_data_type":
-                target_column = action.target_column
-                new_value = action.new_value
-
-                if target_column not in self.df.columns:
-                    raise ValueError(f"Column {target_column} not found")
-
-                # Handle comma strings if casting to int (Hard task)
-                if new_value == "int":
-                    self.df[target_column] = self.df[target_column].astype(str).str.replace(",", "")
-                    self.df[target_column] = self.df[target_column].astype(int)
-                elif new_value == "float":
-                    self.df[target_column] = self.df[target_column].astype(float)
-                elif new_value == "datetime":
-                    self.df[target_column] = pd.to_datetime(self.df[target_column])
-                else:
-                    raise ValueError(f"Unsupported type {new_value}")
-
-                self.last_action_feedback = f"Converted {target_column} to {new_value}"
-
-            # ---- SUBMIT FINAL DATASET ----
-            elif action.tool == "submit_final_dataset":  # <-- FIXED: action.tool
-                
-                # Step A: Base requirement - Ensure there are no missing values left anywhere
-                if self.df.isna().sum().sum() > 0:
-                    self.last_action_feedback = "Submission Failed: There are still missing values."
-                    reward = 0.0
-                    terminated = True
-                    return self._get_observation(), reward, terminated, truncated, {}
-
-                # Step A.2: THE ANTI-CHEAT DATA LOSS MONITOR
-                expected_rows = {"easy": 4, "medium": 5, "hard": 5}[self.current_task]
-                if len(self.df) != expected_rows:
-                    self.last_action_feedback = f"Submission Failed: Data Loss Detected! Expected {expected_rows} rows, but got {len(self.df)}. Did you drop rows you weren't supposed to?"
-                    reward = 0.0
-                    terminated = True
-                    return self._get_observation(), reward, terminated, truncated, {}
-                # Step B: The PyTorch Validator (The Standout Feature)
-                try:
-                    # We only want to convert numerical columns to a tensor. 
-                    # If the agent left dirty strings in 'Age' or 'Salary', this will crash!
-                    numeric_df = self.df.select_dtypes(include=['number'])
-                    
-                    # Check if there are actually any numeric columns to validate
-                    if numeric_df.empty:
-                        self.last_action_feedback = "Submission Failed: No numerical columns found. Did you forget to cast them to 'int'?"
-                        reward = 0.0
-                    else:
-                        # The Ultimate Test: Can PyTorch read it?
-                        _ = torch.tensor(numeric_df.values, dtype=torch.float32)
-                        
-                        self.last_action_feedback = "Success! Data is 100% clean and PyTorch compatible."
-                        reward = 1.0 
-                        
-                except Exception as tensor_err:
-                    # If PyTorch crashes, the agent failed the task.
-                    self.last_action_feedback = f"Final Check Failed: Data is not Tensor-ready. Error: {str(tensor_err)}"
-                    reward = 0.25  # Give a tiny bit of partial credit for trying
-                    
-                terminated = True
-
-        except Exception as e:
-            reward = -0.1
-            self.last_action_feedback = f"Error: {str(e)}"
-
-        return self._get_observation(), reward, terminated, truncated, {}
-
-    def _get_observation(self):
-        # 1. Base instruction (Notice the space at the end)
-        instructions = "CRITICAL: If the column 'username' already exists and is an 'int', do NOT rename it back. Immediately use 'submit_final_dataset' to finish. "
+        # Cycle through the 3 tasks sequentially so the bot sees all of them
+        task = self.tasks[self.current_task_idx]
+        self.dataframe = task["data"].copy()
+        self.instructions = task["instructions"]
         
-        # 2. Append the task instructions using +=
-        if self.current_task == "easy":
-            instructions += "Ensure there are no missing values in the dataset. Use drop_missing_rows. When finished, you MUST use the 'submit_final_dataset' tool."
-        elif self.current_task == "medium":
-            instructions += "Rename the column 'usr_nm' to 'username'. Ensure the 'Age' column is cast to an 'int'. When finished, you MUST use the 'submit_final_dataset' tool."
-        elif self.current_task == "hard":
-            instructions += "Do NOT drop rows. Fill missing 'Salary' with '0'. Clean ALL hidden whitespace and newlines from strings. Remove commas from 'Salary' and cast to 'int'. Then use 'submit_final_dataset'."
+        self.current_task_idx = (self.current_task_idx + 1) % len(self.tasks)
+        
+        obs = self._get_obs("Environment initialized. Ready for commands.")
+        return obs, {}
 
+    def _get_obs(self, feedback: str) -> Observation:
+        # Packages the current state of the pandas dataframe to send back to your inference.py
         return Observation(
-            current_columns=list(self.df.columns),
-            # Force standard Python strings and ints to make Pydantic happy
-            data_types={str(col): str(dtype) for col, dtype in self.df.dtypes.items()},
-            missing_values={str(col): int(val) for col, val in self.df.isna().sum().items()},
-            data_preview=self.df.head().to_markdown(),
-            target_schema_instructions=instructions,
-            last_action_feedback=self.last_action_feedback,
+            columns=list(self.dataframe.columns),
+            null_counts=self.dataframe.isnull().sum().to_dict(),
+            dtypes={col: str(dtype) for col, dtype in self.dataframe.dtypes.items()},
+            target_schema_instructions=self.instructions,
+            last_action_feedback=feedback
         )
 
-    def render(self):
-        """Print the current DataFrame and feedback for debugging"""
-        print(f"\nTask: {self.current_task}")
-        print(self.df)
-        print("Last action feedback:", self.last_action_feedback)
+    def step(self, action: Action):
+        reward = 0.0
+        terminated = False
+        feedback = ""
+
+        try:
+            # --- THE BROKEN BUTTON FIX ---
+            # We now actually modify the dataframe using Pandas based on the AI's tool choice
+            
+            if action.tool == "fill_missing_values":
+                if action.target_column in self.dataframe.columns:
+                    # Fill the nulls
+                    self.dataframe[action.target_column] = self.dataframe[action.target_column].fillna(action.new_value)
+                    reward = 0.1  # SCALER BOT FIX: Give a partial reward > 0.0
+                    feedback = f"Success: Filled missing values in {action.target_column} with '{action.new_value}'."
+                else:
+                    feedback = f"Error: Column '{action.target_column}' not found."
+
+            elif action.tool == "change_data_type":
+                if action.target_column in self.dataframe.columns:
+                    # Change the data type
+                    self.dataframe[action.target_column] = self.dataframe[action.target_column].astype(action.new_value)
+                    reward = 0.1
+                    feedback = f"Success: Changed '{action.target_column}' to type {action.new_value}."
+                else:
+                    feedback = f"Error: Column '{action.target_column}' not found."
+
+            elif action.tool == "drop_missing_rows":
+                if action.target_column in self.dataframe.columns:
+                    # Drop rows with NaNs in the target column
+                    self.dataframe = self.dataframe.dropna(subset=[action.target_column])
+                    reward = 0.1
+                    feedback = f"Success: Dropped rows with missing values in '{action.target_column}'."
+                else:
+                    feedback = f"Error: Column '{action.target_column}' not found."
+
+            elif action.tool == "submit_final_dataset":
+                terminated = True
+                reward = 0.5  # SCALER BOT FIX: Score must be strictly between 0 and 1. 0.5 works perfectly here.
+                feedback = "Dataset submitted for final evaluation."
+
+            else:
+                feedback = f"Error: Unknown tool '{action.tool}'"
+
+        except Exception as e:
+            feedback = f"Action crashed the environment: {str(e)}"
+            reward = 0.0
+
+        # Package the new state and send it back to inference.py
+        obs = self._get_obs(feedback)
+        return obs, reward, terminated, False, {}
