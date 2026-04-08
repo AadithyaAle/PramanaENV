@@ -1,17 +1,16 @@
 import pandas as pd
 import numpy as np
 import torch
+import sys
+import os
 from uuid import uuid4
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-# Use the models from your root directory
-try:
-    from ..models import Action as SstHackathonAction
-    from ..models import Observation as SstHackathonObservation
-except ImportError:
-    from models import Action as SstHackathonAction
-    from models import Observation as SstHackathonObservation
+# Force path to find models.py in the root directory
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from models import Action as SstHackathonAction
+from models import Observation as SstHackathonObservation
 
 class SstHackathonEnvironment(Environment):
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
@@ -19,7 +18,6 @@ class SstHackathonEnvironment(Environment):
     def __init__(self):
         self._state = State(episode_id=str(uuid4()), step_count=0)
         
-        # --- THE 3 TASKS REQUIRED BY SCALER BOT ---
         self.tasks = [
             {
                 "name": "task_1_age",
@@ -43,14 +41,10 @@ class SstHackathonEnvironment(Environment):
 
     def reset(self) -> SstHackathonObservation:
         self._state = State(episode_id=str(uuid4()), step_count=0)
-        
-        # Load the next task for the bot
         task = self.tasks[self.current_task_idx]
         self.df = task["data"].copy()
         self.instructions = task["instructions"]
-        
         self.current_task_idx = (self.current_task_idx + 1) % len(self.tasks)
-        
         return self._get_observation("Environment Reset successfully.", 0.0, False)
 
     def _get_observation(self, feedback: str, reward: float, done: bool) -> SstHackathonObservation:
@@ -72,7 +66,6 @@ class SstHackathonEnvironment(Environment):
         feedback = ""
 
         try:
-            # ACTUAL PANDAS LOGIC WITH REWARDS
             if action.tool == "fill_missing_values" and action.target_column in self.df.columns:
                 self.df[action.target_column] = self.df[action.target_column].fillna(action.new_value)
                 reward = 0.5 
@@ -98,7 +91,6 @@ class SstHackathonEnvironment(Environment):
         except Exception as e:
             feedback = f"Action Error: {str(e)}"
 
-        # Prevent infinite loops
         if self._state.step_count >= 10:
             done = True
 
