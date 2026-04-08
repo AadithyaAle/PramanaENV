@@ -1,7 +1,15 @@
 spec_version: 1
-name: SST_hackathon_env
+name: "SST_hackathon_env"
 type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
 
+# The bot needs this section to validate the 3 tasks
+tasks:
+  - name: "task_1_age"
+    description: "Fill missing Age with 25 and cast to integer."
+  - name: "task_2_salary"
+    description: "Drop rows where Salary is missing."
+  - name: "task_3_price"
+    description: "Convert Price column to integer type."
