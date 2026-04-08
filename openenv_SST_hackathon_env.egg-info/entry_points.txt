@@ -1,0 +1,2 @@
+[console_scripts]
+server = SST_hackathon_env.server.app:main
