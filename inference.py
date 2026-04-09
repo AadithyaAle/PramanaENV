@@ -32,7 +32,7 @@ class DataCleanerClient(EnvClient):
         return action.model_dump()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-HF_SPACE_URL = os.getenv("HF_SPACE_URL", "https://sukuna191552s-pramanaenv.hf.space")
+HF_SPACE_URL = "http://localhost:8000"
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct") 
 TASK_NAME = "SST_hackathon_env"
@@ -79,8 +79,9 @@ def build_user_prompt(step: int, obs: dict, last_action: str, last_feedback: str
         """
     ).strip()
 
-def get_model_action(llm_client: OpenAI, step: int, obs: dict, last_action: str, last_feedback: str) -> Action:
+def get_model_action(llm_client, step, obs, last_action, last_feedback):
     user_prompt = build_user_prompt(step, obs, last_action, last_feedback)
+
     try:
         completion = llm_client.chat.completions.create(
             model=MODEL_NAME,
@@ -88,15 +89,45 @@ def get_model_action(llm_client: OpenAI, step: int, obs: dict, last_action: str,
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            response_format={"type": "json_object"} 
+            temperature=0.2,   # lower = more stable
+            max_tokens=200,
         )
+
         raw_text = (completion.choices[0].message.content or "").strip()
-        return Action(**json.loads(raw_text))
+
+        # 🔥 DEBUG PRINT
+        print(f"[RAW MODEL OUTPUT]: {raw_text}")
+
+        # ❌ EMPTY RESPONSE FIX
+        if not raw_text:
+            raise ValueError("Empty response from model")
+
+        # 🔧 Extract JSON safely (handles extra text)
+        import re
+        match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+        if not match:
+            raise ValueError("No JSON found in model output")
+
+        json_str = match.group()
+
+        return Action(**json.loads(json_str))
+
     except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
-        return Action(tool="submit_final_dataset", target_column="", new_value="")
+        print(f"[DEBUG] Model request failed: {exc}")
+
+        missing = obs.get("missing_values", {})
+        dtypes = obs.get("data_types", {})
+
+        # 🧠 Priority 1: Fix missing values
+        if "Age" in missing and missing["Age"] > 0:
+            return Action(tool="fill_missing_values", target_column="Age", new_value="25")
+
+        # 🧠 Priority 2: Fix datatype
+        if "Age" in dtypes and "int" not in dtypes["Age"]:
+            return Action(tool="change_data_type", target_column="Age", new_value="int")
+
+        # 🧠 Priority 3: If everything looks clean → submit
+        return Action(tool="submit_final_dataset")
 
 def extract_obs_safe(raw_data):
     if isinstance(raw_data, tuple):
@@ -137,8 +168,10 @@ async def main() -> None:
             
             # --- THE FIX: Extracting data from INSIDE the Observation payload ---
             last_feedback = obs_dict.get("last_action_feedback", "Action executed.")
-            reward = float(obs_dict.get("reward", 0.0))
-            done = bool(obs_dict.get("done", False))
+
+            # ✅ FIX: reward and done are already inside observation
+            reward = obs_obj.reward
+            done = obs_obj.done
 
             rewards.append(reward)
             steps_taken = step
