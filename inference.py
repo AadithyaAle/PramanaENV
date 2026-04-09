@@ -32,7 +32,7 @@ class DataCleanerClient(EnvClient):
         return action.model_dump()
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-HF_SPACE_URL = "https://your-space.hf.space"
+HF_SPACE_URL = "https://sukuna191552s-pramanaenv.hf.space"
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct") 
 TASK_NAME = "SST_hackathon_env"
