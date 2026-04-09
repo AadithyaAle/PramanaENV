@@ -10,16 +10,16 @@ tasks:
     description: "Fill missing Age with 25 and cast to integer."
     grader:
       type: "function"
-      function: "SST_hackathon_env.server.graders:grade_task_1_age"
+      function: "server.graders:grade_task_1_age"
 
   - name: "task_2_salary"
     description: "Drop rows where Salary is missing."
     grader:
       type: "function"
-      function: "SST_hackathon_env.server.graders:grade_task_2_salary"
+      function: "server.graders:grade_task_2_salary"
 
   - name: "task_3_price"
     description: "Convert Price column to integer type."
     grader:
       type: "function"
-      function: "SST_hackathon_env.server.graders:grade_task_3_price"
+      function: "server.graders:grade_task_3_price"
