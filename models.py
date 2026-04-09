@@ -13,7 +13,7 @@ class Observation(BaseModel):
     last_action_feedback: str 
     
     # ADDED THESE TWO LINES (Required by OpenEnv)
-    reward: float = 0.0
+    reward: float = 0.05  # Changed from 0.0 to satisfy the [0.05, 0.95] constraint
     done: bool = False
 
 class Action(BaseModel):

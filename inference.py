@@ -154,7 +154,9 @@ async def main() -> None:
             print(f"   [X-RAY] Missing Values: {obs_dict.get('missing_values')}")
             print("-" * 50)
 
-        score = min(max(sum(rewards), 0.0), 1.0) 
+        # Average the rewards and strictly clamp to platform boundaries
+        score = sum(rewards) / len(rewards) if rewards else 0.05
+        score = min(max(score, 0.05), 0.95)
         success = score >= SUCCESS_SCORE_THRESHOLD
 
     except Exception as e:
